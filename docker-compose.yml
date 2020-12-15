@@ -1,0 +1,85 @@
+# Docker Compose file Reference (https://docs.docker.com/compose/compose-file/)
+version: '3.7'
+
+# Define services
+services:
+
+    elasticsearch:
+      image: docker.elastic.co/elasticsearch/elasticsearch-oss:7.10.1
+      volumes:
+         - esdata:/usr/share/elasticsearch/data
+      ports:
+        - "9200:9200"
+        - "9300:9300"
+      environment:
+        ES_JAVA_OPTS: "-Xmx256m -Xms256m"
+        #ELASTIC_PASSWORD: changeme
+        # Use single node discovery in order to disable production mode and avoid bootstrap checks.
+        # see: https://www.elastic.co/guide/en/elasticsearch/reference/current/bootstrap-checks.html
+        discovery.type: single-node
+      networks:
+        - backend
+
+    logstash:
+      image: docker.elastic.co/logstash/logstash-oss:7.10.1
+      volumes:
+        # - ./logstash/config/logstash.yml:/usr/share/logstash/config/logstash.yml:ro
+        - ./logstash/pipeline:/usr/share/logstash/pipeline:ro
+        - ./sample_logs:/var/log/lc:ro
+      ports:
+        - "5000:5000"
+      environment:
+        LS_JAVA_OPTS: "-Xmx256m -Xms256m"
+      networks:
+        - backend
+      depends_on:
+        - elasticsearch
+      links:
+        - elasticsearch
+
+    # App backend service
+    api:
+      # Configuration for building the docker image for the backend service
+      build:
+        context: api # Use an image built from the specified dockerfile in the `api` directory.
+        dockerfile: Dockerfile
+      ports:
+        - "8181:8181" # Forward the exposed port 8181 on the container to port 8181 on the host machine
+      environment:
+        SPRING_BOOT_SERVER_PORT: "8181"
+      restart: always
+      depends_on: 
+        - elasticsearch
+        - logstash
+      networks: # Networks to join (Services on the same network can communicate with each other using their name)
+        - backend
+        - frontend
+      links:
+        - elasticsearch
+
+    # Frontend Service 
+    web_ui:
+      build:
+        context: web_ui # Use an image built from the specified dockerfile in the `web_ui` directory.
+        dockerfile: Dockerfile
+        args:
+          REACT_APP_API_BASE_URL: http://localhost:8181/
+          REACT_APP_DEFAULT_LOG_DURATION: 5555
+      ports:
+        - "80:80" # Map the exposed port 80 on the container to port 9090 on the host machine
+      restart: always
+      depends_on:
+        - api
+      networks:
+        - frontend  
+
+# Networks to be created to facilitate communication between containers
+networks:
+  backend:
+    driver: bridge
+  frontend:
+    driver: bridge
+
+volumes:
+  esdata:
+    driver: local
