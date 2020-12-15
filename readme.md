@@ -9,7 +9,7 @@ Then get the codebase:
 
 ```console
 $ git clone https://github.com/oxomania/LogCollectorSolution.git
-$ ch LogCollectorSolution
+$ cd LogCollectorSolution
 ```
 
 ### Bringing up the stack
